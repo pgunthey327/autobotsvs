@@ -117,7 +117,15 @@
                 generateCode();
             } 
         }
-       
+        
+        const copyCode = () => {
+            const vscode = acquireVsCodeApi();
+                    const valueToCopy = document.getElementById("definition").value;
+                    vscode.postMessage({
+                        command: 'copyAndPasteValue',
+                        value: valueToCopy
+                    });
+                    };
     </script>
 </head>
 <body>
@@ -145,11 +153,13 @@
                 <label for="outparam" style="display:block;width:150px">Function Output</label>
                 <input type="text" id="outparam" style="width:150px" oninput="generateCode()" placeholder="function output"></input>
             </div>
+            <button id="copyButton" onclick="copyCode()">Generate and Paste Code</button>
         </div>
         <div class="column-2">
             <h1 class="heading">Definition</h1>
             <textarea id="definition" class="output" type="text"></textarea>
         </div>
+
     </div>
 </body>
 </html>
