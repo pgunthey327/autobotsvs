@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
-    let disposable = vscode.commands.registerCommand('extension.showTextboxUI', () => {
-        // Create a new webview panel
-        const panel = vscode.window.createWebviewPanel(
+    let panel: vscode.WebviewPanel;
+     let disposable = vscode.commands.registerCommand('extension.opencodeGenerator', () => {
+        panel = vscode.window.createWebviewPanel(
             'textboxUI', // The internal ID of the webview
             'Textbox UI', // The title of the webview
             vscode.ViewColumn.One, // Where to show the webview
@@ -11,25 +11,61 @@ export function activate(context: vscode.ExtensionContext) {
                 enableScripts: true, // Allow JavaScript in the webview
             }
         );
-
-        // Set the HTML content of the webview (this will display the textbox)
-        panel.webview.html = getWebviewContent();
-
-        // Listen for messages from the webview
-        // panel.webview.onDidReceiveMessage(
-        //     message => {
-        //         switch (message.command) {
-        //             case 'submit':
-        //                 vscode.window.showInformationMessage(`User entered: ${message.text}`);
-        //                 return;
-        //         }
-        //     },
-        //     undefined,
-        //     context.subscriptions
-        // );
+        if(panel){
+            panel.webview.html = getWebviewContent();
+            panel.webview.onDidReceiveMessage(
+                message => {
+                  switch (message.command) {
+                    case 'copyAndPasteValue':
+                      // Trigger the command to paste the value in the editor
+                      vscode.commands.executeCommand('extension.copyAndPasteValue', message.value);
+                      return;
+                  }
+                },
+                undefined,
+                context.subscriptions
+              );
+        } 
     });
 
-    context.subscriptions.push(disposable);
+    function closeWebview() {
+        if (panel) {
+            panel.dispose(); // Dispose of the webview to close it
+        }
+    }
+
+    
+    const editor1 = vscode.window.activeTextEditor;
+    const copyAndPasteValueCommand = vscode.commands.registerCommand('extension.copyAndPasteValue', async (valueToCopy: string) => {
+    // Close the webview (if it's open)
+    if (editor1) {
+        const uri = editor1.document.uri;
+        // Try to reopen the document
+        await vscode.window.showTextDocument(uri, { preview: false }).then(newEditor => {
+            insertTextAtPosition(newEditor, valueToCopy);
+        });
+        closeWebview();
+    }
+
+        // Helper function to insert text at the current cursor position
+    function insertTextAtPosition(editor: vscode.TextEditor, text: string) {
+        const position = editor.selection.active;  // Get the current cursor position
+        editor.edit((editBuilder: { insert: (arg0: any, arg1: any) => void; }) => {
+            editBuilder.insert(position, text); // Insert the copied text at the cursor position
+        }).then((success: any) => {
+            if (success) {
+                vscode.window.showInformationMessage('Code Generated successfully!');
+            } else {
+                vscode.window.showErrorMessage('Failed to insert text.');
+            }
+        });
+    }
+    });
+
+
+    
+
+    context.subscriptions.push(disposable, copyAndPasteValueCommand);
 }
 
 export function deactivate() {}
@@ -155,7 +191,15 @@ function getWebviewContent() {
                 generateCode();
             } 
         }
-       
+        
+        const copyCode = () => {
+            const vscode = acquireVsCodeApi();
+                    const valueToCopy = document.getElementById("definition").value;
+                    vscode.postMessage({
+                        command: 'copyAndPasteValue',
+                        value: valueToCopy
+                    });
+                    };
     </script>
 </head>
 <body>
@@ -183,11 +227,13 @@ function getWebviewContent() {
                 <label for="outparam" style="display:block;width:150px">Function Output</label>
                 <input type="text" id="outparam" style="width:150px" oninput="generateCode()" placeholder="function output"></input>
             </div>
+            <button id="copyButton" onclick="copyCode()">Generate and Paste Code</button>
         </div>
         <div class="column-2">
             <h1 class="heading">Definition</h1>
             <textarea id="definition" class="output" type="text"></textarea>
         </div>
+
     </div>
 </body>
 </html>

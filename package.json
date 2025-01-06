@@ -14,10 +14,23 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.showTextboxUI",
-        "title": "Show Textbox UI"
+        "command": "extension.opencodeGenerator",
+        "title": "Generate JS Code"
+      },
+      {
+        "command": "extension.copyAndPasteValue",
+        "title": "Copy and Paste Value"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.opencodeGenerator",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        }
+      ]
+  }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
