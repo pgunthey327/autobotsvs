@@ -5,7 +5,7 @@ export function activate(context: vscode.ExtensionContext) {
      let disposable = vscode.commands.registerCommand('extension.opencodeGenerator', () => {
         panel = vscode.window.createWebviewPanel(
             'textboxUI', // The internal ID of the webview
-            'Textbox UI', // The title of the webview
+            'Generate JS Code', // The title of the webview
             vscode.ViewColumn.One, // Where to show the webview
             {
                 enableScripts: true, // Allow JavaScript in the webview
@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
             editBuilder.insert(position, text); // Insert the copied text at the cursor position
         }).then((success: any) => {
             if (success) {
-                vscode.window.showInformationMessage('Code Generated successfully!');
+                vscode.window.showInformationMessage('Code Generator Exited Successfully!');
             } else {
                 vscode.window.showErrorMessage('Failed to insert text.');
             }
@@ -89,13 +89,14 @@ function getWebviewContent() {
         .grid-container {
             display: grid;
             height: 100%; /* Full window height */
-            grid-template-columns: 80% 20%; /* 80% for the first column, 20% for the second column */
+            grid-template-columns: 75% 25%; /* 80% for the first column, 20% for the second column */
             grid-template-rows: 100%; /* Full height for rows */
+            color: black;
         }
 
         /* Column 1 style (takes 80% of the width) */
         .column-1 {
-            background-color: #f4f4f4; /* Light grey background */
+            background-color: #f7ddff; /* Light grey background */
             padding: 20px;
         }
 
@@ -117,7 +118,7 @@ function getWebviewContent() {
             display: flex;
         }
         .parameterrow {
-            display: inline-flex;
+            display: flex;
             margin-bottom: 10px;
         }
         .outparamrow {
@@ -128,39 +129,180 @@ function getWebviewContent() {
             margin-right: 10px;
         }
         .textbox-container {
-            margin-top: 10px;
             margin-bottom: 10px;
+            margin-right: 10px;
         }
+        .textbox-container-one {
+            margin-bottom: 10px;
+            margin-right: 10px;
+            width: 158px;
+        }
+        .textbox-container-two {
+            margin-bottom: 10px;
+            margin-right: 10px;
+            width: 158px;
+        }
+
         .textbox-container input {
             margin-right: 10px;
         }
+        .button-width {
+            width:1px;
+        }
     </style>
     <script>
+        const options = {
+            array : ['map', 'filter', 'reduce', 'forEach', 'some', 'find', 'every', 'sort'],
+            string : ['charAt', 'charCodeAt', 'concat', 'includes', 'indexOf', 'lastIndexOf', 'length', 'match', 'normalize', 'padEnd', 'padStart', 'repeat', 'replace', 'replaceAll', 'search', 'slice', 'split', 'substring', 'toLowerCase', 'toUpperCase', 'trim', 'trimEnd', 'trimStart', 'toString', 'valueOf'],
+            loop : ['for', 'while', 'do-while'],
+            condition : ['if-else', 'switch']
+        };
+        const codeOptions =  (option) => {
+            let syntax;
+            switch (option) {
+                case 'map':
+                    syntax = "const result = ArrayName.map((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'filter':
+                    syntax = "const result = ArrayName.filter((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'reduce':
+                    syntax = "const result = ArrayName.reduce((accumulator, currentValue, index, array) => {\\n     // Your logic here\\n   }, initialValue);\\n   ";
+                    break;
+                case 'forEach':
+                    syntax = "ArrayName.forEach((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'find':
+                    syntax = "const found = ArrayName.find((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'some':
+                    syntax = "const result = ArrayName.some((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'every':
+                    syntax = "const result = ArrayName.every((element, index, array) => {\\n     // Your logic here\\n   });\\n   ";
+                    break;
+                case 'sort':
+                    syntax = "ArrayName.sort((a, b) => {\\n     // Compare logic here\\n   });\\n   ";
+                    break;
+                case 'charAt':
+                    syntax = "const result = 'string'.charAt(index);  // Returns the character at the specified index\\n   ";
+                    break;
+                case 'concat':
+                    syntax = "const result = 'string1'.concat('string2');  // Joins two or more strings\\n   ";
+                    break;
+                case 'includes':
+                    syntax = "const result = 'string'.includes(substring);  // Checks if the string contains the specified substring\\n   ";
+                    break;
+                case 'indexOf':
+                    syntax = "const result = 'string'.indexOf(searchValue);  // Returns the index of the first occurrence of a specified value\\n   ";
+                    break;
+                case 'lastIndexOf':
+                    syntax = "const result = 'string'.lastIndexOf(searchValue);  // Returns the index of the last occurrence of a specified value\\n   ";
+                    break;
+                case 'length':
+                    syntax = "const result = 'string'.length;  // Returns the length of the string\\n   ";
+                    break;
+                case 'replace':
+                    syntax = "const result = 'string'.replace(searchValue, replaceValue);  // Replaces the specified value with another value\\n   ";
+                    break;
+                case 'search':
+                    syntax = "const result = 'string'.search(regexp);  // Searches the string for a match and returns the index of the first match\\n   ";
+                    break;
+                case 'slice':
+                    syntax = "const result = 'string'.slice(startIndex, endIndex);  // Extracts a section of a string\\n   ";
+                    break;
+                case 'split':
+                    syntax = "const result = 'string'.split(separator);  // Splits the string into an array of substrings\\n   ";
+                    break;
+                case 'substring':
+                    syntax = "const result = 'string'.substring(startIndex, endIndex);  // Returns part of the string between two indices\\n   ";
+                    break;
+                case 'toLowerCase':
+                    syntax = "const result = 'string'.toLowerCase();  // Converts the string to lowercase\\n   ";
+                    break;
+                case 'toUpperCase':
+                    syntax = "const result = 'string'.toUpperCase();  // Converts the string to uppercase\\n   ";
+                    break;
+                case 'trim':
+                    syntax = "const result = 'string'.trim();  // Removes whitespace from both ends of the string\\n   ";
+                    break;
+                case 'trimStart':
+                    syntax = "const result = 'string'.trimStart();  // Removes whitespace from the beginning of the string\\n   ";
+                    break;
+                case 'trimEnd':
+                    syntax = "const result = 'string'.trimEnd();  // Removes whitespace from the end of the string\\n   ";
+                    break;
+                case 'match':
+                    syntax = "const result = 'string'.match(regexp);  // Retrieves the result of matching a string against a regular expression\\n   ";
+                    break;
+                case 'replaceAll':
+                    syntax = "const result = 'string'.replaceAll(searchValue, replaceValue);  // Replaces all occurrences of a value in the string\\n   ";
+                    break;
+                case 'padStart':
+                    syntax = "const result = 'string'.padStart(targetLength, padString);  // Pads the string with another string from the start\\n   ";
+                    break;
+                case 'padEnd':
+                    syntax = "const result = 'string'.padEnd(targetLength, padString);  // Pads the string with another string from the end\\n   ";
+                    break;
+                case 'charCodeAt':
+                    syntax = "const result = 'string'.charCodeAt(index);  // Returns the UTF-16 code unit at the specified index\\n   ";
+                    break;
+                case 'normalize':
+                    syntax = "const result = 'string'.normalize();  // Returns the Unicode Normalization Form of the string\\n   ";
+                    break;
+                case 'for':
+                    syntax = "for (let i = 0; i < array.length; i++) {\\n     // Your loop logic here\\n   }\\n   ";
+                    break;
+                case 'while':
+                    syntax = "while (condition) {\\n     // Your loop logic here\\n   }\\n   ";
+                    break;
+                case 'do-while':
+                    syntax = "do {\\n     // Your loop logic here\\n   } while (condition);\\n   ";
+                    break;
+                case 'if-else':
+                    syntax = "if {\\n     // Your if logic here\\n   } \\n    else {\\n     // Your if logic here\\n   } \\n   ";
+                    break;
+                case 'switch':
+                    syntax = "switch(condition) {\\n    case x:1\\n    // logic\\n     break;\\n    case y:1\\n   //  logic\\n     break;\\n    default: x=1;  \\n   } \\n   ";
+                    break;
+                default:
+                    syntax = 'Please select a valid option.';
+            }
+            return syntax;
+        }
         function generateCode(){
             var definition = document.getElementById("definition");
             var functionName = document.getElementById("functionInput");
             var outparam = document.getElementById("outparam");
             var container = document.getElementById("textbox-list");
             var textboxes = container.getElementsByClassName("parameterTextbox");
-
+            var codeblocks = document.getElementsByClassName("textbox-container-two");
             let params = [];
+            let codes = "";
             if (textboxes.length > 0) {
                 for(let i=0;i<textboxes.length;i++) {
                     params.push(textboxes[i].value);
                 };
             }
+            if(codeblocks.length){
+                for(let i=0;i<codeblocks.length;i++) {
+                    codes = codes.concat(codeOptions(codeblocks[i].value));
+                    console.log(codeblocks[i].value+codeOptions(codeblocks[i].value) + i);
+                };
+            }
             let parameters = params.toString();
-            definition.value = "const " + functionName.value + " = ("+ parameters+ ") => { \\n return "+outparam.value+"; \\n }";
+            definition.value = "const " + functionName.value + " = ("+ parameters+ ") => { \\n    "+codes+" \\n return "+outparam.value+"; \\n}";
         }
 
         function addTextbox() {
             // Get the container where the textboxes will be added
             var container = document.getElementById("textbox-list");
+            const rowCount = container.children.length + 1;
 
             // Create a new div to hold the new textbox
             var newTextboxDiv = document.createElement("div");
             newTextboxDiv.className = "textbox-container";
-
+            newTextboxDiv.id = "rowp-"+rowCount;
             // Create the new input element (textbox)
             var newTextbox = document.createElement("input");
             newTextbox.type = "text";
@@ -172,24 +314,66 @@ function getWebviewContent() {
             })
             // Append the textbox to the new div
             newTextboxDiv.appendChild(newTextbox);
-
+            var newButton = document.createElement("button");
+            newButton.innerText = "Remove";
+            newButton.addEventListener('click', function(){
+                removeTextbox(rowCount);
+                generateCode();
+            })
+            newTextboxDiv.appendChild(newButton);
             // Append the new div to the container
             container.appendChild(newTextboxDiv);
         }
 
         // Function to remove the last textbox
-        function removeTextbox() {
-            // Get the container where the textboxes are located
-            var container = document.getElementById("textbox-list");
+        function removeTextbox(row) {
+            const rowToRemove = document.getElementById("rowp-"+row);
+            rowToRemove.remove();
+        }
 
-            // Get all the textboxes within the container
-            var textboxes = container.getElementsByClassName("textbox-container");
+        function addCodeTextbox() {
+            const selectList = document.getElementById('select-list');
+            const newRow = document.createElement('div');
+            newRow.classList.add('row');
+            const rowCount = selectList.children.length + 1;
+            newRow.id = "row-"+rowCount;
+            newRow.innerHTML = "".concat(
+                '<select class="textbox-container-one" id="first-select-'+rowCount+'" onchange="updateSecondSelect('+rowCount+')">',
+                 '<option value="condition">condition</option>',
+                  '<option value="array">array</option>',
+                   '<option value="string">string</option>',
+                    '<option value="loop">loop</option>',
+                '</select>',
+                '<select id="second-select-'+rowCount+'" onchange="generateCode()" class="textbox-container-two">',
+                    '<option value="if-else">if-else</option>',
+                    '<option value="switch">switch</option>',
+                 '</select>',
+                  '<button class="remove-button" onclick="removeCodeTextbox('+rowCount+')">Remove</button>',
+                );
 
-            // If there are any textboxes, remove the last one
-            if (textboxes.length > 0) {
-                container.removeChild(textboxes[textboxes.length - 1]);
-                generateCode();
-            } 
+            selectList.appendChild(newRow);
+            updateSecondSelect(rowCount); 
+            generateCode();
+        }
+
+
+                // Function to update second select options based on first select
+        function updateSecondSelect(row) {
+            const firstSelect = document.getElementById("first-select-"+row);
+            const secondSelect = document.getElementById("second-select-"+row);
+            const selectedCategory = firstSelect.value;
+
+            // Clear the second select
+            secondSelect.innerHTML = '';
+
+            // Add new options based on selected category
+            options[selectedCategory].forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                secondSelect.appendChild(option);
+            });
+            generateCode();
         }
         
         const copyCode = () => {
@@ -199,7 +383,21 @@ function getWebviewContent() {
                         command: 'copyAndPasteValue',
                         value: valueToCopy
                     });
-                    };
+        };
+
+        const exitGenerator = () => {
+             const vscode = acquireVsCodeApi();
+                    vscode.postMessage({
+                        command: 'copyAndPasteValue',
+                        value: ''
+                    });
+        }
+
+    function removeCodeTextbox(row) {
+            const rowToRemove = document.getElementById("row-"+row);
+            rowToRemove.remove();
+            generateCode();
+        }
     </script>
 </head>
 <body>
@@ -211,23 +409,31 @@ function getWebviewContent() {
                 <input type="text" id="functionInput" style="width:150px" oninput="generateCode()" placeholder="function name"></input>
             </div>
             <div class="parameterrow">
-                <label for="functionParameters" style="display:block;width:150px">FunctionParameters</label>
+                <label for="functionParameters" style="display:block;width:150px">Function Parameters</label>
                     <!-- Buttons to add and remove textboxes -->
                      <div class="parameterButton">
-                        <button onclick="addTextbox()" style="width:75px">Add</button>
-                        <button onclick="removeTextbox()" style="width:75px">Remove</button>
-    
-                        <div id="textbox-list" style="max-height: 200px; overflow-y: scroll;">
+                        <button onclick="addTextbox()" style="width:158px">Add</button>
+                    </div>
+                        <div id="textbox-list" style="max-height: 200px; overflow-y: scroll;scrollbar-width: none; background-color: #ebaaff;">
                             <!-- New textboxes will be added here -->
-                        </div>
-                     </div>
+                        </div>   
+            </div>
+            <div class="parameterrow">
+                <label for="functionParameters" style="display:block;width:150px">Code Block</label>
+                     <div class="parameterButton">
+                        <button onclick="addCodeTextbox()" style="width:158px">Add</button>
+                    </div>
+                        <div id="select-list" style="max-height: 200px; overflow-y: scroll;scrollbar-width: none;background-color: #ebaaff;">
+                    </div>
                     
             </div>
             <div class="outparamrow">
                 <label for="outparam" style="display:block;width:150px">Function Output</label>
                 <input type="text" id="outparam" style="width:150px" oninput="generateCode()" placeholder="function output"></input>
             </div>
+            <div style="width:100%;border-bottom: 1px solid grey; margin-bottom:2px"></div>
             <button id="copyButton" onclick="copyCode()">Generate and Paste Code</button>
+            <button id="exitButton" onclick="exitGenerator()">Exit</button>
         </div>
         <div class="column-2">
             <h1 class="heading">Definition</h1>
