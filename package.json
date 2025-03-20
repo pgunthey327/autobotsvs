@@ -20,6 +20,10 @@
       {
         "command": "extension.copyAndPasteValue",
         "title": "Copy and Paste Value"
+      },
+      {
+        "command": "extension.openReactApp",
+        "title": "Open React App"
       }
     ],
     "menus": {
