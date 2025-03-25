@@ -41,19 +41,46 @@ const chat2 = genModel2.startChat({
 });
 
 function App() {
+  const [envVar, setEnvVar] = useState("sample");
   const [model, selectModel] = useState("All AI Modal");
   const [userMessage, setUserMessage] = useState("");
   const [toggleBot, setToggleBot] = useState(true);
   const [template, setTemplate] = useState("");
+
   const [messages1, setMessages1] = useState([
-    { id: uuidv4(), text: "Hello! How can I help you today?", sender: "bot" }
+    { id: uuidv4(), text: `Hello! How can I help you today?${envVar}`, sender: "bot" }
   ]);
 
   const [messages2, setMessages2] = useState([
     { id: uuidv4(), text: "Hello! How can I help you today?", sender: "bot" }
   ]);
 
-  
+  useEffect(() => {
+    function handleMessage(event) {
+        console.log("📩 React Received Message:", event.data); // 🔍 Check if message is received
+
+        if (event.origin !== "vscode-webview://") { 
+            console.warn("🚨 Ignoring message from:", event.origin);
+            return; // 🛑 Ignore messages from external sources
+        }
+
+        if (event.data?.type === "env") {
+            console.log("🌍 Setting ENV Variable:", event.data.data.SAMPLE_ENV);
+            setEnvVar(prevState => {
+              console.log("Previous State:", prevState, "New State:", event.data.data.SAMPLE_ENV);
+              return event.data.data.SAMPLE_ENV;
+          });
+        }
+    }
+
+    window.addEventListener("message", handleMessage);
+    console.log("👂 Listening for messages...");
+
+    return () => {
+        window.removeEventListener("message", handleMessage);
+    };
+}, []);
+
   const [loader1, setLoader1] = useState(false);
   const [loader2, setLoader2] = useState(false);
   const [geminiFlash, setGeminiFlash] = useState(true);
@@ -309,7 +336,7 @@ const runGemini2Model = async prompt => {
         <div id="toast" className="toast">Copied to clipboard</div>
         <Row style={{height:"7vh", backgroundColor:"darkslategrey"}}>
           <div style={{color: "white", fontSize: "large", textAlign: "left", marginTop: "10px", marginLeft:"10px"}}>
-            Gen AI for Code Generation
+            Gen AI for Code Generation{envVar}
           </div>
         </Row>
         <Row style={{height:"93vh"}}>

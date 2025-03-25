@@ -9,14 +9,16 @@ export function activate(context: vscode.ExtensionContext) {
             'Generate JS Code', // The title of the webview
             vscode.ViewColumn.One, // Where to show the webview
             {
-                enableScripts: true, // Allow JavaScript in the webview
+                enableScripts: true,
+                retainContextWhenHidden: true // Allow JavaScript in the webview
             }
             
         );
         if(panel){
             const reactAppPath = path.join(context.extensionPath, 'client', 'dist', 'index.html');
             //const htmlContent = panel.webview.asWebviewUri(vscode.Uri.file(reactAppPath)).toString();
-            console.log("env variable",process.env.SAMPLE_ENV);
+            const config = vscode.workspace.getConfiguration("myExtension.env");
+            const sampleEnv = config.get("SAMPLE_ENV");
             const htmlContent = fs.readFileSync(reactAppPath, 'utf8');
             panel.webview.html =  htmlContent;
             panel.webview.onDidReceiveMessage(
@@ -31,6 +33,14 @@ export function activate(context: vscode.ExtensionContext) {
                 undefined,
                 context.subscriptions
               );
+              setTimeout(() => {
+                panel.webview.postMessage({
+                    type: "env",
+                    data: { SAMPLE_ENV: process.env.SAMPLE_ENV }
+                });
+                console.log(" Sent message to React:", process.env.SAMPLE_ENV);
+            }, 4000);
+            console.log(sampleEnv,"sampleENv")
         } 
     });
 
