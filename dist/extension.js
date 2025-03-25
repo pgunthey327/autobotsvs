@@ -56,8 +56,8 @@ function activate(context) {
         if (panel) {
             const reactAppPath = path.join(context.extensionPath, 'client', 'dist', 'index.html');
             //const htmlContent = panel.webview.asWebviewUri(vscode.Uri.file(reactAppPath)).toString();
+            console.log("env variable", process.env.SAMPLE_ENV);
             const htmlContent = fs.readFileSync(reactAppPath, 'utf8');
-            console.log("-----------", htmlContent, "-------------");
             panel.webview.html = htmlContent;
             panel.webview.onDidReceiveMessage(message => {
                 switch (message.command) {
