@@ -4,5 +4,5 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(),nodePolyfills()]
+  plugins: [react(), viteSingleFile(),nodePolyfills({protocolImports:true})]
 });
