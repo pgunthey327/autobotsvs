@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "axios": "^1.8.4",
     "bootstrap": "^5.3.3",
     "buffer": "^6.0.3",
     "cra-template": "1.2.0",
@@ -19,7 +20,6 @@
     "install": "^0.13.0",
     "js-beautify": "^1.15.1",
     "npm": "^11.0.0",
-    "piston-client": "^1.0.2",
     "prettier": "^3.4.2",
     "react": "^19.0.0",
     "react-animated-ellipsis": "^1.0.0",

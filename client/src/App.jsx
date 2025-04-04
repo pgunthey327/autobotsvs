@@ -11,12 +11,11 @@ import './App.css';
 import { v4 as uuidv4 } from 'uuid';
 import beautify from "js-beautify";
 import { Buffer } from 'buffer';
-import piston from "piston-client";
 import Spinner from 'react-bootstrap/Spinner';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const pistonClient = piston({ server: "https://emkc.org" });
-const genAI = new GoogleGenerativeAI("");
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import axios from 'axios';
+const vscode = window.acquireVsCodeApi();
+const genAI = new GoogleGenerativeAI("AIzaSyCLR3Fh7p_y7wEO9gOv7R1vDxdinwjU--8");
 const genModel1 = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 const chat1 = genModel1.startChat({
   history: [{
@@ -41,46 +40,19 @@ const chat2 = genModel2.startChat({
 });
 
 function App() {
-  const [envVar, setEnvVar] = useState("sample");
   const [model, selectModel] = useState("All AI Modal");
   const [userMessage, setUserMessage] = useState("");
   const [toggleBot, setToggleBot] = useState(true);
   const [template, setTemplate] = useState("");
-
   const [messages1, setMessages1] = useState([
-    { id: uuidv4(), text: `Hello! How can I help you today?${envVar}`, sender: "bot" }
+    { id: uuidv4(), text: "Hello! How can I help you today?", sender: "bot" }
   ]);
 
   const [messages2, setMessages2] = useState([
     { id: uuidv4(), text: "Hello! How can I help you today?", sender: "bot" }
   ]);
 
-  useEffect(() => {
-    function handleMessage(event) {
-        console.log("📩 React Received Message:", event.data); // 🔍 Check if message is received
-
-        if (event.origin !== "vscode-webview://") { 
-            console.warn("🚨 Ignoring message from:", event.origin);
-            return; // 🛑 Ignore messages from external sources
-        }
-
-        if (event.data?.type === "env") {
-            console.log("🌍 Setting ENV Variable:", event.data.data.SAMPLE_ENV);
-            setEnvVar(prevState => {
-              console.log("Previous State:", prevState, "New State:", event.data.data.SAMPLE_ENV);
-              return event.data.data.SAMPLE_ENV;
-          });
-        }
-    }
-
-    window.addEventListener("message", handleMessage);
-    console.log("👂 Listening for messages...");
-
-    return () => {
-        window.removeEventListener("message", handleMessage);
-    };
-}, []);
-
+  
   const [loader1, setLoader1] = useState(false);
   const [loader2, setLoader2] = useState(false);
   const [geminiFlash, setGeminiFlash] = useState(true);
@@ -97,8 +69,8 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const runtimes = await pistonClient.runtimes();
-        setRunTimeEnv(runtimes.filter(runtime=>!!availableRuntimes.includes(runtime.language.toLowerCase())));
+        const runtimes = await axios.get('https://emkc.org/api/v2/piston/runtimes');
+        setRunTimeEnv(runtimes.data.filter(runtime=>!!availableRuntimes.includes(runtime.language.toLowerCase())));
       } catch (e) {
         console.log("Error occur while fetching runtime env : ", e);
       }
@@ -157,6 +129,7 @@ const runGemini2Model = async prompt => {
       try{
         botResponse = imageSelected ? await generateGemini1Content(prompt) : await runGemini1Model(prompt);
       } 
+      // eslint-disable-next-line no-unused-vars
       catch (e){
         botResponse = "I didn't quite catch that, Would you mind repeating what you said?";
       }
@@ -183,6 +156,7 @@ const runGemini2Model = async prompt => {
       try{
         botResponse = imageSelected ? await generateGemini2Content(prompt) : await runGemini2Model(prompt);
       } 
+      // eslint-disable-next-line no-unused-vars
       catch (e){
         botResponse = "I didn't quite catch that, Would you mind repeating what you said?";
       }
@@ -207,7 +181,15 @@ const runGemini2Model = async prompt => {
           output.value = eval(code.value);
         }
         else {
-          response = await pistonClient.execute(language, code.value, { language: version });      
+          // response = await pistonClient.execute(language, code.value, { language: version }); 
+          const boilerplate = {
+            "language": language,
+            "version": version,
+            "files": [{
+                "content": code.value
+            }]
+          }
+          response = (await axios.post('https://emkc.org/api/v2/piston/execute', boilerplate))?.data; 
           if (response.run.stdout !== "") {
             output.value = response?.run?.stdout;
           }
@@ -227,18 +209,12 @@ const runGemini2Model = async prompt => {
       setExeLoader(false);
     }
 
-    const saveCode = () => {
+    const saveCode = async () => {
       const text = document.getElementById("codeEditor").value;
-      var blob = new Blob([text], { type: "javascript" });
-
-      var a = document.createElement('a');
-      a.download = "code.js";
-      a.href = URL.createObjectURL(blob);
-      a.dataset.downloadurl = ["javascript", a.download, a.href].join(':');
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      vscode.postMessage({
+        type: 'saveFile',
+        payload: text,
+      });
     }
     const generateTemplate = () => {
       const code = document.getElementById("codeEditor");
@@ -336,7 +312,7 @@ const runGemini2Model = async prompt => {
         <div id="toast" className="toast">Copied to clipboard</div>
         <Row style={{height:"7vh", backgroundColor:"darkslategrey"}}>
           <div style={{color: "white", fontSize: "large", textAlign: "left", marginTop: "10px", marginLeft:"10px"}}>
-            Gen AI for Code Generation{envVar}
+            Gen AI for Code Generation
           </div>
         </Row>
         <Row style={{height:"93vh"}}>
