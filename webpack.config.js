@@ -46,3 +46,40 @@ const extensionConfig = {
   },
 };
 module.exports = [ extensionConfig ];
+// Build a web (browser) compatible bundle for VS Code Web
+/** @type WebpackConfig */
+const webExtensionConfig = {
+  target: 'webworker', // web extensions run in a webworker
+  mode: 'none',
+  entry: './src/extension.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'extension-web.js',
+    libraryTarget: 'commonjs2'
+  },
+  externals: {
+    vscode: 'commonjs vscode'
+  },
+  resolve: {
+    extensions: ['.ts', '.js']
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: [
+          {
+            loader: 'ts-loader'
+          }
+        ]
+      }
+    ]
+  },
+  devtool: 'nosources-source-map',
+  infrastructureLogging: {
+    level: "log",
+  },
+};
+
+module.exports = [ extensionConfig, webExtensionConfig ];

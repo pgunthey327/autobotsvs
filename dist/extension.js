@@ -153,13 +153,15 @@ function activate(context) {
                 }
             }, undefined, context.subscriptions);
             // send environment after handshake; we'll also send it after a short delay
-            panel.webview.postMessage({ type: 'env', data: { SAMPLE_ENV: process.env.SAMPLE_ENV } });
+            // Send configuration value (prefer workspace configuration over process.env)
+            const envToSend = sampleEnv ?? process.env?.SAMPLE_ENV;
+            panel.webview.postMessage({ type: 'env', data: { SAMPLE_ENV: envToSend } });
             setTimeout(() => {
                 panel.webview.postMessage({
                     type: "env",
-                    data: { SAMPLE_ENV: process.env.SAMPLE_ENV }
+                    data: { SAMPLE_ENV: envToSend }
                 });
-                console.log(" Sent message to React:", process.env.SAMPLE_ENV);
+                console.log(" Sent message to React:", envToSend);
             }, 4000);
             console.log(sampleEnv, "sampleENv");
         }

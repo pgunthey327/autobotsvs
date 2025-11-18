@@ -125,15 +125,17 @@ export function activate(context: vscode.ExtensionContext) {
                                 context.subscriptions
                             );
                             // send environment after handshake; we'll also send it after a short delay
-                            panel.webview.postMessage({ type: 'env', data: { SAMPLE_ENV: process.env.SAMPLE_ENV } });
-                            setTimeout(() => {
+                                // Send configuration value (prefer workspace configuration over process.env)
+                                const envToSend = sampleEnv ?? process.env?.SAMPLE_ENV;
+                                panel.webview.postMessage({ type: 'env', data: { SAMPLE_ENV: envToSend } });
+                                setTimeout(() => {
                                 panel.webview.postMessage({
-                                        type: "env",
-                                        data: { SAMPLE_ENV: process.env.SAMPLE_ENV }
+                                    type: "env",
+                                    data: { SAMPLE_ENV: envToSend }
                                 });
-                                console.log(" Sent message to React:", process.env.SAMPLE_ENV);
-                        }, 4000);
-            console.log(sampleEnv,"sampleENv")
+                                console.log(" Sent message to React:", envToSend);
+                            }, 4000);
+                        console.log(sampleEnv,"sampleENv")
         } 
     });
 
