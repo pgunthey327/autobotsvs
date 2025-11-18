@@ -1,45 +1,138 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 export function activate(context: vscode.ExtensionContext) {
     let panel: vscode.WebviewPanel;
-     let disposable = vscode.commands.registerCommand('extension.opencodeGenerator', () => {
+     let disposable = vscode.commands.registerCommand('extension.opencodeGenerator', async () => {
         panel = vscode.window.createWebviewPanel(
             'textboxUI', // The internal ID of the webview
             'Generate JS Code', // The title of the webview
             vscode.ViewColumn.One, // Where to show the webview
-            {
+            ({
                 enableScripts: true,
                 retainContextWhenHidden: true // Allow JavaScript in the webview
-            }
+            } as any)
             
         );
         if(panel){
-            const reactAppPath = path.join(context.extensionPath, 'client', 'dist', 'index.html');
-            //const htmlContent = panel.webview.asWebviewUri(vscode.Uri.file(reactAppPath)).toString();
+            // Read the built frontend HTML using VS Code FS (works in desktop and web)
+            const indexUri = vscode.Uri.joinPath(context.extensionUri, 'client', 'dist', 'index.html');
             const config = vscode.workspace.getConfiguration("myExtension.env");
             const sampleEnv = config.get("SAMPLE_ENV");
-            const htmlContent = fs.readFileSync(reactAppPath, 'utf8');
-            panel.webview.html =  htmlContent;
-            panel.webview.onDidReceiveMessage(
-                message => {
-                  switch (message.command) {
-                    case 'copyAndPasteValue':
-                      // Trigger the command to paste the value in the editor
-                      vscode.commands.executeCommand('extension.copyAndPasteValue', message.value);
-                      return;
-                  }
-                },
-                undefined,
-                context.subscriptions
-              );
-              setTimeout(() => {
-                panel.webview.postMessage({
-                    type: "env",
-                    data: { SAMPLE_ENV: process.env.SAMPLE_ENV }
-                });
-                console.log(" Sent message to React:", process.env.SAMPLE_ENV);
-            }, 4000);
+
+            // token used to validate incoming messages
+            let currentToken: string | null = null;
+
+            try {
+                const data = await vscode.workspace.fs.readFile(indexUri);
+                let htmlContent = new TextDecoder().decode(data);
+
+                // We must avoid rewriting occurrences inside <script>...</script> blocks
+                // (the built HTML may contain document.write calls that include HTML strings).
+                // Split the document into script and non-script segments and only modify non-script parts.
+                // For now allow inline scripts so the single-file build runs without needing to add nonces.
+                const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data:; style-src 'unsafe-inline' ${panel.webview.cspSource}; script-src ${panel.webview.cspSource} 'unsafe-inline';">`;
+
+                // insert CSP meta into the head (before other modifications)
+                htmlContent = htmlContent.replace(/<head(.*?)>/i, (m) => `${m}\n    ${cspMeta}`);
+
+                // Regex to locate <script>...</script> blocks
+                const scriptBlockRegex = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
+                let lastIndex = 0;
+                const parts: string[] = [];
+                let matchScript: RegExpExecArray | null;
+                while ((matchScript = scriptBlockRegex.exec(htmlContent)) !== null) {
+                    const idx = matchScript.index;
+                    // push the non-script segment
+                    parts.push(htmlContent.substring(lastIndex, idx));
+                    // push the script block unchanged
+                    parts.push(matchScript[0]);
+                    lastIndex = idx + matchScript[0].length;
+                }
+                parts.push(htmlContent.substring(lastIndex));
+
+                // Process only the non-script segments (even indices)
+                for (let i = 0; i < parts.length; i += 2) {
+                    // rewrite src/href attributes to webview URIs
+                    parts[i] = parts[i].replace(/(src|href)="([^\"]+)"/g, (match: string, attr: string, url: string) => {
+                        if (/^(https?:|data:|mailto:|#)/.test(url)) {
+                            return match;
+                        }
+                        const cleaned = url.replace(/^\.\//, '');
+                        const resourceUri = vscode.Uri.joinPath(context.extensionUri, 'client', 'dist', cleaned);
+                        const webviewUri = panel.webview.asWebviewUri(resourceUri);
+                        return `${attr}="${webviewUri.toString()}"`;
+                    });
+                    // do not modify script contents or attributes here to avoid corrupting inline JS
+                    // scripts will be allowed by the CSP above (`'unsafe-inline'`) for the single-file build.
+                }
+
+                const processed = parts.join('');
+                panel.webview.html = processed;
+
+                // `retainContextWhenHidden` is a WebviewPanel option (provided at creation).
+                // For the webview options here we assign only the allowed WebviewOptions.
+                panel.webview.options = {
+                    enableScripts: true,
+                    localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'client', 'dist')]
+                } as vscode.WebviewOptions;
+                console.log('Loaded client/dist/index.html into webview');
+                console.log('Injected CSP nonce and set webview HTML');
+                // generate a short-lived handshake token for extra message validation
+                const handshakeToken = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+                // store it locally so incoming messages can be validated
+                currentToken = handshakeToken;
+                // send handshake immediately so the webview can attach the token to outgoing messages
+                panel.webview.postMessage({ type: 'handshake', token: handshakeToken });
+                console.log('Sent handshake token to webview');
+                console.log('handshakeToken:', handshakeToken);
+            } catch (err) {
+                console.error('Failed to load client/dist/index.html, falling back to embedded content', err);
+                // Inject nonce and CSP into embedded fallback as well
+                try {
+                    let fallback = getWebviewContent();
+                    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data:; style-src 'unsafe-inline' ${panel.webview.cspSource}; script-src ${panel.webview.cspSource} 'unsafe-inline';">`;
+                    fallback = fallback.replace(/<head(.*?)>/i, (m) => `${m}\n    ${cspMeta}`);
+                    panel.webview.html = fallback;
+                    console.log('Loaded embedded fallback HTML into webview');
+                } catch (e) {
+                    panel.webview.html = getWebviewContent();
+                }
+            }
+                        // Validate incoming messages using the handshake token when possible
+                        panel.webview.onDidReceiveMessage(
+                                message => {
+                                    // capture handshake token from webview if present
+                                    if (message?.type === 'handshake' && message?.token) {
+                                        currentToken = message.token;
+                                        return;
+                                    }
+
+                                    // If a token is provided, require it to match. If no token is provided, accept
+                                    // for backwards compatibility with older frontends.
+                                    const tokenOk = !message?.token || message?.token === currentToken;
+                                    if (!tokenOk) {
+                                        console.warn('Rejected message with invalid/missing token', message);
+                                        return;
+                                    }
+
+                                    switch (message.command) {
+                                        case 'copyAndPasteValue':
+                                            // Trigger the command to paste the value in the editor
+                                            vscode.commands.executeCommand('extension.copyAndPasteValue', message.value);
+                                            return;
+                                    }
+                                },
+                                undefined,
+                                context.subscriptions
+                            );
+                            // send environment after handshake; we'll also send it after a short delay
+                            panel.webview.postMessage({ type: 'env', data: { SAMPLE_ENV: process.env.SAMPLE_ENV } });
+                            setTimeout(() => {
+                                panel.webview.postMessage({
+                                        type: "env",
+                                        data: { SAMPLE_ENV: process.env.SAMPLE_ENV }
+                                });
+                                console.log(" Sent message to React:", process.env.SAMPLE_ENV);
+                        }, 4000);
             console.log(sampleEnv,"sampleENv")
         } 
     });
@@ -167,6 +260,17 @@ function getWebviewContent() {
         }
     </style>
     <script>
+        let __handshakeToken = null;
+        window.addEventListener('message', (e) => {
+            const payload = e.data || {};
+            if (payload.type === 'handshake' && payload.token) {
+                __handshakeToken = payload.token;
+            }
+            if (payload.type === 'env') {
+                // no-op: embedded fallback can react to env if needed
+                console.log('env received in embedded fallback', payload.data);
+            }
+        });
         const options = {
             array : ['map', 'filter', 'reduce', 'forEach', 'some', 'find', 'every', 'sort'],
             string : ['charAt', 'charCodeAt', 'concat', 'includes', 'indexOf', 'lastIndexOf', 'length', 'match', 'normalize', 'padEnd', 'padStart', 'repeat', 'replace', 'replaceAll', 'search', 'slice', 'split', 'substring', 'toLowerCase', 'toUpperCase', 'trim', 'trimEnd', 'trimStart', 'toString', 'valueOf'],
@@ -397,7 +501,8 @@ function getWebviewContent() {
                     const valueToCopy = document.getElementById("definition").value;
                     vscode.postMessage({
                         command: 'copyAndPasteValue',
-                        value: valueToCopy
+                        value: valueToCopy,
+                        token: __handshakeToken
                     });
         };
 
@@ -405,7 +510,8 @@ function getWebviewContent() {
              const vscode = acquireVsCodeApi();
                     vscode.postMessage({
                         command: 'copyAndPasteValue',
-                        value: ''
+                        value: '',
+                        token: __handshakeToken
                     });
         }
 

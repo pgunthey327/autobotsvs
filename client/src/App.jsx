@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -55,31 +55,47 @@ function App() {
     { id: uuidv4(), text: "Hello! How can I help you today?", sender: "bot" }
   ]);
 
+  const handshakeRef = useRef(null);
   useEffect(() => {
-    function handleMessage(event) {
-        console.log("📩 React Received Message:", event.data); // 🔍 Check if message is received
+  function handleMessage(event) {
+    console.log("📩 React Received Message:", event.data);
 
-        if (event.origin !== "vscode-webview://") { 
-            console.warn("🚨 Ignoring message from:", event.origin);
-            return; // 🛑 Ignore messages from external sources
-        }
-
-        if (event.data?.type === "env") {
-            console.log("🌍 Setting ENV Variable:", event.data.data.SAMPLE_ENV);
-            setEnvVar(prevState => {
-              console.log("Previous State:", prevState, "New State:", event.data.data.SAMPLE_ENV);
-              return event.data.data.SAMPLE_ENV;
-          });
-        }
+    const payload = event.data || {};
+    if (payload.type === 'handshake' && payload.token) {
+      handshakeRef.current = payload.token;
+      console.log('Handshake token stored in webview');
+      return;
     }
 
-    window.addEventListener("message", handleMessage);
-    console.log("👂 Listening for messages...");
+    // Accept messages based on their content rather than a strict origin check.
+    if (payload?.type === "env") {
+      console.log("🌍 Setting ENV Variable:", payload.data.SAMPLE_ENV);
+      setEnvVar(prevState => {
+        console.log("Previous State:", prevState, "New State:", payload.data.SAMPLE_ENV);
+        return payload.data.SAMPLE_ENV;
+      });
+    }
+  }
 
-    return () => {
-        window.removeEventListener("message", handleMessage);
-    };
+  window.addEventListener("message", handleMessage);
+  console.log("👂 Listening for messages...");
+
+  return () => {
+    window.removeEventListener("message", handleMessage);
+  };
 }, []);
+
+  // Helper to post messages back to the extension, automatically including the handshake token when available
+  const postToExtension = (message) => {
+    try {
+      if (typeof acquireVsCodeApi === 'function') {
+        const vscodeApi = acquireVsCodeApi();
+        vscodeApi.postMessage({ ...message, token: handshakeRef.current });
+      }
+    } catch (e) {
+      // not running inside a webview / acquireVsCodeApi not available
+    }
+  }
 
   const [loader1, setLoader1] = useState(false);
   const [loader2, setLoader2] = useState(false);
